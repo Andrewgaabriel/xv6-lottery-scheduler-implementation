@@ -76,7 +76,7 @@ allocproc(void)
   struct proc *p;
   char *sp;
 
-  acquire(&ptable.lock);
+  acquire(&ptable.lock); //-----------------------------> O QUE É PTABLE.LOCK?????
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
@@ -178,11 +178,12 @@ growproc(int n)
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
 int
-fork(void)
+fork(int bilhetes)
 {
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
+  
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -214,6 +215,7 @@ fork(void)
 
   acquire(&ptable.lock);
 
+  np->bilhetes = bilhetes; //setando a quantidade de bilhetes do processo
   np->state = RUNNABLE;
 
   release(&ptable.lock);
