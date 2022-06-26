@@ -5,9 +5,41 @@
 #include "syscall.h"
 #include "rand.h"
 
+int teste0(void);
+int teste1(void);
+int teste2(void);
+int teste3(void);
 
-/* Main com definição de bilhetes e processamento de ~3s*/
-/* int main() {
+
+
+int main(int argc, char *argv[]) {
+    int a;
+
+    a = atoi(argv[1]);
+
+    if (a == 0) {
+        printf(1, "teste COM definicao de bilhetes e processamento FINITO\n");
+        teste0();
+    } else if (a == 1) {
+        printf(1, "teste COM definicao de bilhetes e processamento INFINITO\n");
+        teste1();
+    } else if (a == 2) {
+        printf(1, "teste SEM definicao de bilhetes e processamento FINITO\n");
+        teste2();
+    } else if (a == 3) {
+        printf(1, "teste SEM definicao de bilhetes e processamento INFINITO\n");
+        teste3();
+    } else {
+        printf(1, "no valid option\n");
+    }
+    exit();
+}
+
+
+
+
+/* teste com definição de bilhetes e processamento de ~3s*/
+int teste0() {
 
     int N = 3;
     int pid;
@@ -30,13 +62,13 @@
         wait();
     }
     exit();
-} */
+}
 
 
 
-/* Main com definição de bilhetes e processamento infinito
+/* teste com definição de bilhetes e processamento infinito
  testa usando CTRL + P*/
-/* int main() {
+int teste1() {
 
     int N = 3;
     int pid;
@@ -54,13 +86,13 @@
         wait();
     }
     exit();
-} */
+}
 
 
 
 
-/* Main sem definição de bilhetes e processamento de ~3s*/
-/* int main() {
+/* teste sem definição de bilhetes e processamento de ~3s*/
+int teste2() {
 
     int pid;
 
@@ -74,8 +106,6 @@
                     c = d * 1234.56 + c % 12346;
                 }
             }
-            for(;;);
-
             printf(1, "P:%d B:%d\n",getpid(), 10+i*40);
             exit();
         }
@@ -85,13 +115,13 @@
         wait();
     }
     exit();
-} */
+}
 
 
 
-/* Main sem definição de bilhetes e processamento infinito
+/* teste sem definição de bilhetes e processamento infinito
 testa usando CTRL + P */
-int main() {
+int teste3() {
 
     int pid;
 
