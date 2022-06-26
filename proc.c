@@ -6,11 +6,12 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "rand.h" // ! ------------------------------------------------------------------------
 
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
-} ptable;
+} ptable; // * estrutura que guarda os processos
 
 static struct proc *initproc;
 
@@ -71,12 +72,12 @@ myproc(void) {
 // state required to run in the kernel.
 // Otherwise return 0.
 static struct proc*
-allocproc(void)
+allocproc(int bilhetes) // ! ------------------------------------------------------------------------
 {
   struct proc *p;
   char *sp;
 
-  acquire(&ptable.lock); //-----------------------------> O QUE É PTABLE.LOCK?????
+  acquire(&ptable.lock);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
@@ -88,6 +89,20 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->vzsEscolhido = 0; // ! Seta o vzsEscolhido como 0
+
+  /**
+   *  ? VALIDAÇÃO DA QUANTIDADE DE BILHETES */
+
+  if (bilhetes < NBILHETES_MIN) {         // ! Se a quantidade de bilhetes for menor que a quantidade mínima exigida
+    p->bilhetes = NBILHETES_MIN;          // ! ele seta a qntd mínima
+  } else if (bilhetes > NBILHETES_MAX) {  // ! Se a quantidade de bilhetes for maior que a quantidade máxima 
+    p->bilhetes = NBILHETES_MAX;          // ! ele seta a qntd máxima
+  } else {                                // ! Se estiver dentro dos parâmetros ele seta a quantidade normal
+    p->bilhetes = bilhetes;               // ! Seta a quantidade definida pelo usuário 
+  }
+  
+  
 
   release(&ptable.lock);
 
@@ -123,7 +138,7 @@ userinit(void)
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
-  p = allocproc();
+  p = allocproc(10); // ! ------------------------------------------------------------------------
   
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
@@ -178,7 +193,7 @@ growproc(int n)
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
 int
-fork(int bilhetes)
+fork(int bilhetes) // ! recebe um int como argumento ------------------------------------------------------------------------
 {
   int i, pid;
   struct proc *np;
@@ -186,7 +201,7 @@ fork(int bilhetes)
   
 
   // Allocate process.
-  if((np = allocproc()) == 0){
+  if((np = allocproc(bilhetes)) == 0){ // ! passa a qtd de bilhetes pro allocproc ------------------------------------------------------------------------
     return -1;
   }
 
@@ -215,7 +230,6 @@ fork(int bilhetes)
 
   acquire(&ptable.lock);
 
-  np->bilhetes = bilhetes; //setando a quantidade de bilhetes do processo
   np->state = RUNNABLE;
 
   release(&ptable.lock);
@@ -313,6 +327,8 @@ wait(void)
   }
 }
 
+
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -322,40 +338,86 @@ wait(void)
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
 void
-scheduler(void)
+scheduler(void) // ! ------------------------------------------------------------------------
 {
+  int oSortudo = 0;
+  int intervaloBilhetes[NPROC];
   struct proc *p;
   struct cpu *c = mycpu();
+
   c->proc = 0;
   
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
+    
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
+    // Inicializa o vetor de intervalo de bilhetes
+    for (int j = 0; j < NPROC; j++) {
+      intervaloBilhetes[j] = 0;
+    }
+    
+    int qtdBilhetesDisponiveis = 0;
+    int v = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++ ,v++){
+
+      if(p->state == RUNNABLE){
+        qtdBilhetesDisponiveis += p->bilhetes;
+        intervaloBilhetes[v] = p->bilhetes;
+        //intervaloBilhetes[p->pid] = p->bilhetes; //processo = 10, intervaloBilhetes[10] = 10
+        //cprintf("%d\n", p->bilhetes);                                                     
+      }
+    }
+
+    /* for(int i = 0; i < NPROC; i++) {
+      cprintf("%d ", intervaloBilhetes[i]);
+    } */
+
+    //cprintf("\nqtdBilhetesDisponiveis: %d\n", qtdBilhetesDisponiveis);
+
+    
+    oSortudo = random_at_most(qtdBilhetesDisponiveis);       // TA FUNCIONANDO
+    
+    //cprintf("o Sortudo: %d\n", oSortudo);
+    int soma = 0;
+    int indexDoSorteado = 0;
+    //int idDoSorteado = 0;m
+
+    while(soma < oSortudo) {                        // enquanto a soma for menor que o sortudo 
+      soma += intervaloBilhetes[indexDoSorteado];   // soma o intervalo de bilhetes do processo i
+      indexDoSorteado++;
+    }
+
+    //cprintf("indexDoSorteado: %d\n", indexDoSorteado-1);
+
+    int x = 0;
+    indexDoSorteado = indexDoSorteado - 1;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++, x++){
+
+      if(p->state != RUNNABLE) continue;
+
+
+      if (x != indexDoSorteado) continue;
+
+      p->vzsEscolhido++;
+      //cprintf("p %d foi esclh %d vzs\n", p->pid, p->vzsEscolhido);
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
-
+      
+      //cprintf("Running - PID: %d - Bilhetes: %d\n", p->pid, p->bilhetes);
       swtch(&(c->scheduler), p->context);
       switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
       c->proc = 0;
-    }
-    release(&ptable.lock);
 
+      break;
+    }
+    release(&ptable.lock);                                       
   }
-}
+} // ! ------------------------------------------------------------------------
+
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -503,21 +565,23 @@ kill(int pid)
 // Runs when user types ^P on console.
 // No lock to avoid wedging a stuck machine further.
 void
-procdump(void)
+procdump(void) // ! ------------------------------------------------------------------------
 {
   static char *states[] = {
-  [UNUSED]    "unused",
-  [EMBRYO]    "embryo",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
+  [UNUSED]    "UNUSED",
+  [EMBRYO]    "EMBRYO",
+  [SLEEPING]  "SLEEP ",
+  [RUNNABLE]  "PRONTO",
+  [RUNNING]   "EXEC  ",
+  [ZOMBIE]    "ZOMBIE"
   };
-  int i;
+  //int i;
   struct proc *p;
   char *state;
-  uint pc[10];
-
+  //uint pc[10];
+  cprintf("+-------+--------+------+----------------------+\n");
+  cprintf("|PID    |STATE   |NOME  |BILHETES - QTd.ESCLHD \n");
+  cprintf("+-------+--------+------+----------------------+\n");
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -525,12 +589,31 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
-    if(p->state == SLEEPING){
+    cprintf("|  %d    |%s  |%s\t|   %d   -   %d    ", p->pid, state, p->name, p->bilhetes, p->vzsEscolhido);
+    /* if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
         cprintf(" %p", pc[i]);
-    }
+    } */
     cprintf("\n");
+  }
+  cprintf("+-------+--------+------+------------+----------+\n\n");
+}
+
+
+// Kill the process with the given name.
+void
+killName(char *name) // ! ------------------------------------------------------------------------
+{
+  struct proc *p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == UNUSED)
+      continue;
+    if(strncmp(p->name, name, 5) == 0){
+      p->killed = 1;
+      // Wake process from sleep if necessary.
+      if(p->state == SLEEPING)
+        p->state = RUNNABLE;
+    }
   }
 }

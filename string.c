@@ -55,7 +55,7 @@ memcpy(void *dst, const void *src, uint n)
   return memmove(dst, src, n);
 }
 
-int
+int 
 strncmp(const char *p, const char *q, uint n)
 {
   while(n > 0 && *p && *p == *q)
